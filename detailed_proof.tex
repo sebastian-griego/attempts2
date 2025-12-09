@@ -1,0 +1,138 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+\begin{document}
+
+\title{Ordering a Subset of $\mathbf F_p^\times$ with Distinct Partial Sums}
+\author{}
+\date{}
+\maketitle
+
+\begin{abstract}
+Let $p$ be a prime and let $A\subseteq \mathbf F_p^\times$ be a finite nonempty set. We prove that
+there is an ordering of the elements of $A$ whose running sums are pairwise distinct. The argument
+packages the obstruction to distinct partial sums into a multivariate polynomial and invokes the
+combinatorial Nullstellensatz.
+\end{abstract}
+
+Throughout the paper we identify $\mathbf F_p$ with the residue class ring $\mathbf Z/p\mathbf Z$.
+For a $t$-tuple $\mathbf x=(x_1,\dots,x_t)$ write $S_j(\mathbf x)=\sum_{k=1}^j x_k$ with the
+convention $S_0(\mathbf x)=0$. The tuple has \emph{distinct partial sums} if the values
+$S_1(\mathbf x), \dots, S_t(\mathbf x)$ are pairwise distinct.
+
+\section{Statement}
+\begin{theorem}
+Let $p$ be prime and let $A \subseteq \mathbf F_p^\times$ be finite. Then there exists an ordering
+$A = \{a_1,\dots,a_t\}$ of its elements whose partial sums $S_j = \sum_{k=1}^j a_k$ are pairwise
+distinct.
+\end{theorem}
+
+\section{Encoding the obstruction}
+Fix $t = |A| \ge 1$ and consider indeterminates $x_1,\dots,x_t$. For $0 \le i < j \le t$ denote by
+\[
+  B_{i,j}(x_1,\dots,x_t) = \sum_{k=i+1}^{j} x_k
+\]
+the sum of the block of $x$'s between positions $i+1$ and $j$. Equal partial sums $S_j(\mathbf x) =
+S_i(\mathbf x)$ (with $j>i$) are equivalent to the vanishing of $B_{i,j}(\mathbf x)$.
+
+We separate the factors that merely enforce the nonvanishing of the individual coordinates. Since
+our variables will eventually range over $A \subseteq \mathbf F_p^\times$, each coordinate is forced
+to be nonzero. Consequently it suffices to record only the factors with $j-i \ge 2$. Define the
+``block polynomial''
+\begin{equation}
+  G(x_1,\dots,x_t) = \prod_{0 \le i < j \le t \atop j-i\ge 2} B_{i,j}(x_1,\dots,x_t)
+  \label{eq:block-poly}
+\end{equation}
+in $\mathbf Z[x_1,\dots,x_t]$. A tuple $\mathbf x \in (\mathbf F_p^\times)^t$ has distinct partial
+sums if and only if $G(\mathbf x) \ne 0$.
+
+To also guarantee that the entries are distinct we multiply by the Vandermonde determinant
+\[
+  \Delta(x_1,\dots,x_t) = \prod_{1 \le i < j \le t} (x_j - x_i).
+\]
+The product
+\begin{equation}
+  P(x_1,\dots,x_t) = \Delta(x_1,\dots,x_t) \cdot G(x_1,\dots,x_t)
+  \label{eq:poly-def}
+\end{equation}
+belongs to $\mathbf Z[x_1,\dots,x_t]$. By construction we have $P(\mathbf x) = 0$ whenever two
+coordinates of $\mathbf x$ coincide or whenever two partial sums coincide.
+
+\section{A distinguished monomial}
+We now exhibit a monomial whose coefficient in $P$ is $\pm 1$. Expanding the Vandermonde determinant
+as the determinant of the matrix $[x_i^{j-1}]_{1\le i,j\le t}$ shows that the coefficient of
+$x_1^{0} x_2^{1} \cdots x_t^{t-1}$ equals $1$. In the block polynomial $G$ we select the $x_{i+1}$
+term from every factor $B_{i,j}$ (this is legitimate because $j-i \ge 2$). The index $i+1$ ranges
+from $1$ to $t-1$ and the factor $x_{i+1}$ is chosen once for each $j$ with $i+2 \le j \le t$. Hence
+$x_m$ occurs exactly $t-m$ times for $1 \le m \le t$, and the resulting monomial is
+$x_1^{t-1} x_2^{t-2} \cdots x_t^{0}$. Therefore $P$ contains the monomial
+\begin{equation}
+  M(x_1,\dots,x_t) = x_1^{t-1} x_2^{t-1} \cdots x_t^{t-1}
+  \label{eq:leading}
+\end{equation}
+with coefficient $\pm 1$. In particular that coefficient remains nonzero modulo $p$.
+
+\section{Applying the combinatorial Nullstellensatz}
+Let each variable $x_i$ range over the finite set $A$. Since $|A| = t$, the inequality
+$|A| > t-1$ holds for every index. The monomial identified in~\eqref{eq:leading} therefore satisfies
+all hypotheses of the combinatorial Nullstellensatz. Consequently there exist elements
+$(a_1,\dots,a_t) \in A^t$ such that $P(a_1,\dots,a_t) \ne 0$.
+
+Because of the Vandermonde factor the coordinates $a_i$ must be pairwise distinct, hence they form a
+permutation of the set $A$. The nonvanishing of the block polynomial $G$ implies that none of the
+block sums $a_{i+1} + \dots + a_j$ with $j-i \ge 2$ vanishes. Since the elements of $A$ are
+nonzero, blocks of length one also have nonzero sum. Thus no two partial sums coincide, and the
+ordering $(a_1,\dots,a_t)$ satisfies the desired conclusion.
+
+\section{Conclusion}
+Starting from a finite subset of $\mathbf F_p^\times$ we have produced an ordering whose partial
+sums are pairwise distinct. The proof relies on a single application of the combinatorial
+Nullstellensatz to the polynomial defined in~\eqref{eq:poly-def}.
+\qed
+
+\section*{Addendum: a more precise coefficient calculation}
+The polynomial $P$ admits a more refined combinatorial description that is useful for formalizing
+the argument in Lean. Each factor $B_{i,j}$ in~\eqref{eq:block-poly} offers a choice of one of the
+variables $x_{i+1},\dots,x_j$. The expanded block polynomial $G$ can therefore be written as
+\[
+  G = \sum_{c} x_1^{e_1(c)} x_2^{e_2(c)} \cdots x_t^{e_t(c)}
+\]
+where the sum runs over functions $c$ that pick one index in every block, and $e_m(c)$ counts how
+often $m$ was selected. Similarly, the Vandermonde determinant expands into a signed sum indexed by
+permutations $\sigma$ of $\{1,\dots,t\}$, with exponent $v_k(\sigma)$ recording the position of $k$
+in the permutation.
+
+Combining these expansions we obtain a ``double sum'' for the obstruction polynomial
+\[
+  P = \sum_{c,\sigma} \operatorname{sgn}(\sigma) \, x^{e(c) + v(\sigma)},
+\]
+where exponent vectors are added componentwise. This description exposes several special monomials
+besides~\eqref{eq:leading}. In particular, consider the block choice $c_\mathrm{term}$ that always
+selects the largest index inside each block. A direct count shows that the corresponding exponent
+vector is $e_m(c_\mathrm{term}) = m-1$. Taking $\sigma = \mathrm{id}$ yields the combined exponent
+$(2(m-1))_{1\le m\le t}$. No other pair $(c,\sigma)$ contributes to this monomial:
+
+\begin{itemize}
+  \item If $e(c) \ne (0,1,\dots,t-1)$ then the $x$-exponent in $G$ cannot match $v(\mathrm{id})$.
+  \item If $e(c) = (0,1,\dots,t-1)$ then $c = c_\mathrm{term}$ (by the same counting argument that
+    characterizes the ``canonical'' block choice). Likewise $v(\sigma) = (0,1,\dots,t-1)$ forces
+    $\sigma = \mathrm{id}$.
+\end{itemize}
+
+Consequently the coefficient of $x_1^{0} x_2^{2} x_3^{4} \cdots x_t^{2(t-1)}$ in $P$ is exactly
+$+1$. This fact is extremely convenient in a proof assistant because it prevents the kinds of sign
+cancellations that appear when one targets the symmetric monomial~\eqref{eq:leading}. The Lean
+development recorded in \texttt{solution.lean} formalizes this refined coefficient computation and
+uses it as the bridge between $P$ and the combinatorial Nullstellensatz.
+
+
+\begin{thebibliography}{9}
+\bibitem{AlonCNS} N.~Alon, \emph{Combinatorial Nullstellensatz}, Combinatorics, Probability and
+Computing\,8 (1999), no.~1--2, 7--29.
+\end{thebibliography}
+
+\end{document}
