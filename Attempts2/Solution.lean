@@ -18,6 +18,8 @@ open Finset
 
 open scoped Nat
 
+noncomputable section
+
 variable (n : ℕ)
 
 private def sigmaToProd : (Σ _ : ℕ, ℕ) ↪ ℕ × ℕ :=
@@ -123,9 +125,9 @@ lemma filter_blockPairs_fst (n i : ℕ) :
 lemma card_blockPairs_fst (n i : ℕ) :
     ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.1 = i).card = n - 1 - i := by
   classical
-  simpa [filter_blockPairs_fst, Finset.card_map, Nat.card_Icc, Nat.add_comm, Nat.add_left_comm,
-    Nat.add_assoc] using
-    (Finset.card_map (withFst i) (Finset.Icc (i + 2) n))
+  have h := congrArg Finset.card (filter_blockPairs_fst (n := n) (i := i))
+  simpa [Finset.card_map, Finset.card_Icc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
+    using h
 
 lemma filter_blockPairs_snd (n j : ℕ) (hj : 2 ≤ j) (hj' : j ≤ n) :
     ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.2 = j) =
@@ -203,12 +205,12 @@ instance blockPairsSubtype.instDecidableEq (n : ℕ) :
 
 structure BlockChoice (n : ℕ) where
   choose : blockPairsSubtype (n := n) → Fin n
-  valid : ∀ ij, ij.val.1 ≤ (choose ij : ℕ) ∧ (choose ij : ℕ) < ij.val.2
+  valid : ∀ ij, choose ij ∈ blockAllowed (n := n) ij
 
 noncomputable instance (n : ℕ) : Fintype (BlockChoice (n := n)) := by
   classical
   let X := {f : blockPairsSubtype (n := n) → Fin n //
-    ∀ ij, ij.val.1 ≤ (f ij : ℕ) ∧ (f ij : ℕ) < ij.val.2}
+    ∀ ij, f ij ∈ blockAllowed (n := n) ij}
   refine Fintype.ofEquiv X ?_
   refine
     { toFun := fun c => ⟨c.choose, c.valid⟩
@@ -236,7 +238,6 @@ lemma filter_attach (s : Finset (ℕ × ℕ)) (p : (ℕ × ℕ) → Prop)
   ext ij
   simp [Finset.mem_filter, Finset.mem_attach]
 
-# align  -- help the elaborator grasp the type
 def count (c : BlockChoice (n := n)) (k : Fin n) : ℕ :=
   ((Finset.univ.filter fun ij : blockPairsSubtype (n := n) => c.choose ij = k).card)
 
@@ -255,6 +256,16 @@ def countMulti (c : BlockChoice (n := n)) : Fin n →₀ ℕ :=
   cases d
   cases h
   simp
+
+lemma choose_le_right (c : BlockChoice (n := n))
+    (ij : blockPairsSubtype (n := n)) :
+    ij.val.1 ≤ (c.choose ij : ℕ) :=
+  ((mem_blockAllowed (n := n) ij (c.choose ij)).1 (c.valid ij)).1
+
+lemma choose_lt_right (c : BlockChoice (n := n))
+    (ij : blockPairsSubtype (n := n)) :
+    (c.choose ij : ℕ) < ij.val.2 :=
+  ((mem_blockAllowed (n := n) ij (c.choose ij)).1 (c.valid ij)).2
 
 lemma count_eq_sum_indicator (c : BlockChoice (n := n)) (k : Fin n) :
     c.count k =
@@ -287,15 +298,14 @@ lemma countMulti_eq_sum (c : BlockChoice (n := n)) :
 
 def canonical (n : ℕ) : BlockChoice (n := n) := by
   classical
-  refine ⟨?_, ?_⟩
-  · intro ij
-    exact ⟨ij.val.1, (mem_blockPairs (n := n)).1 ij.property |>.1⟩
-  · intro ij
-    obtain ⟨_, hij, _⟩ := (mem_blockPairs (n := n)).1 ij.property
-    refine ⟨?_, ?_⟩
-    · exact le_of_eq rfl
-    · exact lt_of_lt_of_le
-        (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ)))) hij
+  refine
+    { choose := fun ij => ⟨ij.val.1, (mem_blockPairs (n := n)).1 ij.property |>.1⟩
+      valid := ?_ }
+  intro ij
+  obtain ⟨_, hij, _⟩ := (mem_blockPairs (n := n)).1 ij.property
+  have hlt : (ij.val.1 : ℕ) < ij.val.2 :=
+    lt_of_lt_of_le (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ)))) hij
+  simpa [blockAllowed, mem_blockAllowed, canonical] using And.intro (le_of_eq rfl) hlt
 
 lemma canonical_choose_eq (ij : blockPairsSubtype (n := n)) (k : Fin n) :
     (canonical (n := n)).choose ij = k ↔ ij.val.1 = (k : ℕ) := by
@@ -312,18 +322,16 @@ lemma canonical_choose_eq (ij : blockPairsSubtype (n := n)) (k : Fin n) :
 
 def terminal (n : ℕ) : BlockChoice (n := n) := by
   classical
-  refine ⟨?_, ?_⟩
+  refine
+    { choose := ?_ , valid := ?_ }
   · intro ij
     obtain ⟨_, _, hj⟩ := (mem_blockPairs (n := n)).1 ij.property
-    have hpos : 0 < ij.val.2 := by
-      have : ij.val.1 < ij.val.2 :=
-        lt_of_lt_of_le
+    have hpos : 0 < ij.val.2 :=
+      lt_of_le_of_lt (Nat.zero_le _)
+        (lt_of_lt_of_le
           (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ))))
-          ((mem_blockPairs (n := n)).1 ij.property |>.2.1)
-      exact lt_of_le_of_lt (Nat.zero_le _) this
-    have hlt : ij.val.2 - 1 < n :=
-      lt_of_lt_of_le (Nat.pred_lt (Nat.ne_of_gt hpos)) hj
-    exact ⟨ij.val.2 - 1, hlt⟩
+          ((mem_blockPairs (n := n)).1 ij.property |>.2.1))
+    exact ⟨ij.val.2 - 1, lt_of_lt_of_le (Nat.pred_lt (Nat.ne_of_gt hpos)) hj⟩
   · intro ij
     have hij := (mem_blockPairs (n := n)).1 ij.property
     have hij_lt : ij.val.1 < ij.val.2 :=
@@ -331,11 +339,12 @@ def terminal (n : ℕ) : BlockChoice (n := n) := by
         (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ)))) hij.2.1
     have hid_le : ij.val.1 ≤ ij.val.2 - 1 :=
       Nat.le_of_lt_succ (by simpa using hij_lt)
-    have hpos : 0 < ij.val.2 :=
-      lt_of_le_of_lt (Nat.zero_le _) hij_lt
-    have hj_lt : ij.val.2 - 1 < ij.val.2 :=
-      Nat.pred_lt (Nat.ne_of_gt hpos)
-    exact ⟨hid_le, hj_lt⟩
+    have hpos : 0 < ij.val.2 := lt_of_le_of_lt (Nat.zero_le _) hij_lt
+    have hj_lt : ij.val.2 - 1 < ij.val.2 := Nat.pred_lt (Nat.ne_of_gt hpos)
+    have hchoice : ((terminal (n := n)).choose ij : ℕ) = ij.val.2 - 1 := rfl
+    have hlt : ((terminal (n := n)).choose ij : ℕ) < ij.val.2 := by simpa [hchoice]
+    have hle : ij.val.1 ≤ (terminal (n := n)).choose ij := by simpa [hchoice] using hid_le
+    simpa [blockAllowed, mem_blockAllowed, hchoice] using And.intro hle hlt
 
 lemma terminal_choose_eq (ij : blockPairsSubtype (n := n)) (k : Fin n) :
     (terminal (n := n)).choose ij = k ↔ ij.val.2 = (k : ℕ) + 1 := by
@@ -445,7 +454,7 @@ lemma eq_terminal_of_countMulti
         intro x hx
         have hxval : c.choose x = kfin := (Finset.mem_filter.mp hx).2
         have hxlt : (kfin : ℕ) < x.val.2 := by
-          have := (c.valid x).2
+          have := BlockChoice.choose_lt_right (n := n) c x
           simpa [hxval] using this
         have hxge : n ≤ x.val.2 := Nat.succ_le_of_lt (by simpa [kfin] using hxlt)
         have hxle : x.val.2 ≤ n := (mem_blockPairs (n := n)).1 x.property |>.2.2
@@ -497,7 +506,7 @@ lemma eq_terminal_of_countMulti
           intro x hx
           have hx_eq : c.choose x = kfin := (Finset.mem_filter.mp hx).2
           have hxlt : (kfin : ℕ) < x.val.2 := by
-            have := (c.valid x).2
+            have := BlockChoice.choose_lt_right (n := n) c x
             simpa [hx_eq] using this
           have hxge : j ≤ x.val.2 := Nat.succ_le_of_lt (by simpa [kfin] using hxlt)
           by_cases hx_eq_j : x.val.2 = j
@@ -548,11 +557,7 @@ lemma countMulti_eq_vandTarget_iff (c : BlockChoice (n := n)) :
 
 lemma choose_mem_allowed (c : BlockChoice (n := n))
     (ij : blockPairsSubtype (n := n)) :
-    c.choose ij ∈ blockAllowed (n := n) ij := by
-  classical
-  have h := (c.valid ij)
-  simpa [blockAllowed, Finset.mem_filter, Finset.mem_univ, mem_blockAllowed]
-    using h
+    c.choose ij ∈ blockAllowed (n := n) ij := c.valid ij
 
 lemma choose_mem_pi (c : BlockChoice (n := n)) :
     c.choose ∈ Fintype.piFinset (fun ij : blockPairsSubtype (n := n) =>
@@ -745,7 +750,7 @@ lemma eq_canonical_of_counts
       intro x hx
       have hx_eq : c.choose x = kfin := (Finset.mem_filter.mp hx).2
       have hx_le : x.val.1 ≤ i := by
-        simpa [hx_eq] using (c.valid x).1
+        simpa [hx_eq] using BlockChoice.choose_le_right (n := n) c x
       have hx_not_lt : ¬ x.val.1 < i := by
         intro hxlt
         have hx_case := IH _ hxlt x rfl
@@ -1101,4 +1106,8 @@ lemma target_degree (n : ℕ) :
 
 end AnyRing
 
+end -- noncomputable section
+
 end NullstellensatzSetup
+
+end Solution
