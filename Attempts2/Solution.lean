@@ -87,17 +87,20 @@ lemma mem_blockPairs {i j : ℕ} (n : ℕ) :
   unfold blockPairs
   constructor
   · intro hij
-    obtain ⟨⟨i', j'⟩, hmem, rfl⟩ := Finset.mem_map.mp hij
+    rcases Finset.mem_map.mp hij with ⟨⟨i', j'⟩, hmem, hpair⟩
     rcases Finset.mem_sigma.mp hmem with ⟨hi, hj⟩
-    rcases Finset.mem_Icc.mp hj with ⟨hij, hj'⟩
-    exact ⟨Finset.mem_range.mp hi, hij, hj'⟩
+    rcases Finset.mem_Icc.mp hj with ⟨hij₂, hjn⟩
+    have hi_eq : i' = i := congrArg Prod.fst hpair
+    have hj_eq : j' = j := congrArg Prod.snd hpair
+    subst hi_eq
+    subst hj_eq
+    exact ⟨Finset.mem_range.mp hi, hij₂, hjn⟩
   · intro h
     rcases h with ⟨hi, hij, hj⟩
     refine Finset.mem_map.mpr ?_
     refine ⟨⟨i, j⟩, ?_, rfl⟩
     refine Finset.mem_sigma.mpr ?_
-    refine ⟨Finset.mem_range.mpr hi, ?_⟩
-    exact Finset.mem_Icc.mpr ⟨hij, hj⟩
+    exact ⟨Finset.mem_range.mpr hi, Finset.mem_Icc.mpr ⟨hij, hj⟩⟩
 
 lemma filter_blockPairs_fst (n i : ℕ) :
     ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.1 = i) =
@@ -126,39 +129,63 @@ lemma card_blockPairs_fst (n i : ℕ) :
     ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.1 = i).card = n - 1 - i := by
   classical
   have h := congrArg Finset.card (filter_blockPairs_fst (n := n) (i := i))
-  simpa [Finset.card_map, Finset.card_Icc, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc]
-    using h
+  have hcard : (Finset.Icc (i + 2) n).card = n - 1 - i := by
+    have hIcc : (Finset.Icc (i + 2) n).card = n - (i + 1) := by
+      have := Nat.card_Icc (i + 2) n
+      have hsucc : n + 1 - (i + 2) = n - (i + 1) := by
+        simpa [Nat.succ_eq_add_one] using Nat.succ_sub_succ (n := n) (m := i + 1)
+      simpa [hsucc]
+        using this
+    have hswap : n - (i + 1) = n - 1 - i := by
+      simp [Nat.sub_sub, Nat.add_comm, Nat.add_left_comm]
+    simpa [hswap] using hIcc
+  simpa [Finset.card_map, hcard] using h
+
+lemma add_two_le_iff_lt_pred {a b : ℕ} (hb : 2 ≤ b) :
+    a + 2 ≤ b ↔ a < b - 1 := by
+  have hb' : 1 ≤ b := le_trans (by decide : (1 : ℕ) ≤ 2) hb
+  constructor
+  · intro h
+    have hsucc : (a + 1).succ ≤ (b - 1).succ := by
+      simpa [Nat.succ_eq_add_one, Nat.sub_add_cancel hb'] using h
+    have h' : a + 1 ≤ b - 1 := (Nat.succ_le_succ_iff).mp hsucc
+    exact lt_of_lt_of_le (Nat.lt_succ_self _) h'
+  · intro h
+    have h' : a + 1 ≤ b - 1 := Nat.lt_iff_add_one_le.mp h
+    have := Nat.succ_le_succ h'
+    simpa [Nat.succ_eq_add_one, Nat.sub_add_cancel hb'] using this
 
 lemma filter_blockPairs_snd (n j : ℕ) (hj : 2 ≤ j) (hj' : j ≤ n) :
     ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.2 = j) =
       (Finset.range (j - 1)).map (withSnd j) := by
   classical
-  ext ⟨a, b⟩
+  apply Finset.ext
+  intro ij
   constructor
   · intro h
-    obtain ⟨hmem, hb⟩ := Finset.mem_filter.mp h
-    subst hb
-    obtain ⟨ha, haj, _⟩ := (mem_blockPairs (n := n)).1 hmem
-    have ha1 : a + 1 < j := lt_of_lt_of_le (Nat.lt_succ_self _) haj
-    have hlt : a < j - 1 := by
-      have := Nat.le_pred_of_lt ha1
-      exact lt_of_lt_of_le (Nat.lt_succ_self _) this
+    obtain ⟨hmem, hj_eq⟩ := Finset.mem_filter.mp h
+    obtain ⟨hi_lt, hij₂, hjn⟩ := (mem_blockPairs (n := n)).1 hmem
+    have hi_range : ij.1 < j - 1 := by
+      have : ij.1 + 2 ≤ j := by simpa [hj_eq] using hij₂
+      exact (add_two_le_iff_lt_pred (a := ij.1) (hb := hj)).1 this
     refine Finset.mem_map.mpr ?_
-    refine ⟨a, Finset.mem_range.mpr hlt, ?_⟩
+    refine ⟨ij.1, Finset.mem_range.mpr hi_range, ?_⟩
+    rcases ij with ⟨i, b⟩
+    cases hj_eq
     simp [withSnd]
   · intro h
-    rcases Finset.mem_map.mp h with ⟨a, ha, hpair⟩
-    have ha_lt : a < j - 1 := Finset.mem_range.mp ha
-    have ha_succ : a + 1 ≤ j - 1 := Nat.le_of_lt_succ ha_lt
-    have haj : a + 2 ≤ j := by
-      have := Nat.succ_le_succ ha_succ
-      simpa [Nat.succ_eq_add_one, add_comm, add_left_comm, add_assoc] using this
-    have ha_lt_n : a < n := by
-      have ha2 : a + 2 ≤ n := le_trans haj hj'
-      have ha1 : a + 1 < n := lt_of_lt_of_le (Nat.lt_succ_self _) ha2
-      exact lt_of_lt_of_le (Nat.lt_succ_self a) (Nat.le_of_lt ha1)
+    rcases Finset.mem_map.mp h with ⟨i, hi, rfl⟩
+    have hi_lt : i < j - 1 := Finset.mem_range.mp hi
+    have hij₂ : i + 2 ≤ j :=
+      (add_two_le_iff_lt_pred (a := i) (hb := hj)).2 hi_lt
+    have hi_lt_n : i < n := by
+      have hle : i + 2 ≤ n := le_trans hij₂ hj'
+      have hi_succ_lt : i + 1 < n :=
+        lt_of_lt_of_le (Nat.lt_succ_self (i + 1)) hle
+      exact lt_trans (Nat.lt_succ_self _) hi_succ_lt
     refine Finset.mem_filter.mpr ?_
-    refine ⟨(mem_blockPairs (n := n)).2 ⟨ha_lt_n, haj, hj'⟩, hpair.symm ▸ rfl⟩
+    refine ⟨(mem_blockPairs (n := n)).2 ⟨hi_lt_n, hij₂, hj'⟩, ?_⟩
+    simp [withSnd]
 
 lemma card_blockPairs_snd (n j : ℕ) (hj : 2 ≤ j) (hj' : j ≤ n) :
     ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.2 = j).card = j - 1 := by
@@ -170,7 +197,7 @@ lemma blockTarget_card_blockPairs (n : ℕ) (k : Fin n) :
     blockTarget (n := n) k =
       ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.1 = (k : ℕ)).card := by
   classical
-  simpa [blockTarget_apply] using
+  simpa [blockTarget_apply, eq_comm] using
     (card_blockPairs_fst (n := n) (i := (k : ℕ)))
 
 def blockPairsSubtype (n : ℕ) := {ij : ℕ × ℕ // ij ∈ blockPairs (n := n)}
@@ -190,18 +217,16 @@ lemma mem_blockAllowed {n : ℕ}
 noncomputable instance blockPairsSubtype.instFintype (n : ℕ) :
     Fintype (blockPairsSubtype (n := n)) := by
   classical
-  refine Fintype.ofEquiv ((blockPairs (n := n)).attach) ?_
-  refine
-    { toFun := fun ij => ⟨ij.val, ij.property⟩
-      invFun := fun ij => ⟨ij.1, by simpa using ij.2⟩
-      left_inv := ?_
-      right_inv := ?_ }
-  · intro ij; cases ij; rfl
-  · intro ij; cases ij; rfl
+  have h :=
+    (Fintype.ofFinset (blockPairs (n := n))
+        (by intro ij; rfl)
+      : Fintype {ij : ℕ × ℕ // ij ∈ blockPairs (n := n)})
+  simpa [blockPairsSubtype] using h
 
 instance blockPairsSubtype.instDecidableEq (n : ℕ) :
-    DecidableEq (blockPairsSubtype (n := n)) :=
-  Classical.decEq _
+    DecidableEq (blockPairsSubtype (n := n)) := by
+  classical
+  infer_instance
 
 structure BlockChoice (n : ℕ) where
   choose : blockPairsSubtype (n := n) → Fin n
@@ -213,12 +238,12 @@ noncomputable instance (n : ℕ) : Fintype (BlockChoice (n := n)) := by
     ∀ ij, f ij ∈ blockAllowed (n := n) ij}
   refine Fintype.ofEquiv X ?_
   refine
-    { toFun := fun c => ⟨c.choose, c.valid⟩
-      invFun := fun f => ⟨f.1, f.2⟩
+    { toFun := fun f => ⟨f.1, f.2⟩
+      invFun := fun c => ⟨c.choose, c.valid⟩
       left_inv := ?_
       right_inv := ?_ }
-  · intro c; cases c; rfl
   · intro f; cases f; rfl
+  · intro c; cases c; rfl
 
 namespace BlockChoice
 
@@ -231,12 +256,29 @@ lemma univ_blockSubtype (n : ℕ) :
   ext ij
   simp [blockPairsSubtype]
 
-lemma filter_attach (s : Finset (ℕ × ℕ)) (p : (ℕ × ℕ) → Prop)
-    [DecidablePred p] :
-    s.attach.filter (fun ij => p ij.1) = (s.filter p).attach := by
+lemma card_filter_attach
+    {α : Type*} [DecidableEq α]
+    (s : Finset α) (p : α → Prop) [DecidablePred p] :
+    ((s.attach).filter fun x : {a // a ∈ s} => p x.1).card =
+      (s.filter p).card := by
   classical
-  ext ij
-  simp [Finset.mem_filter, Finset.mem_attach]
+  let f : ({a // a ∈ s}) ↪ α :=
+    ⟨Subtype.val, by intro x y h; cases x; cases y; cases h; rfl⟩
+  have hmap :
+      ((s.attach).filter fun x : {a // a ∈ s} => p x.1).map f =
+        s.filter p := by
+    ext x; constructor
+    · intro hx
+      rcases Finset.mem_map.mp hx with ⟨x', hx', rfl⟩
+      rcases Finset.mem_filter.mp hx' with ⟨-, hx_p⟩
+      exact Finset.mem_filter.mpr ⟨x'.2, hx_p⟩
+    · intro hx
+      rcases Finset.mem_filter.mp hx with ⟨hx_mem, hx_p⟩
+      refine Finset.mem_map.mpr ?_
+      refine ⟨⟨x, hx_mem⟩, ?_, rfl⟩
+      simp [Finset.mem_filter, hx_p]
+  have := congrArg Finset.card hmap
+  simpa [Finset.card_map] using this
 
 def count (c : BlockChoice (n := n)) (k : Fin n) : ℕ :=
   ((Finset.univ.filter fun ij : blockPairsSubtype (n := n) => c.choose ij = k).card)
@@ -276,7 +318,9 @@ lemma count_eq_sum_indicator (c : BlockChoice (n := n)) (k : Fin n) :
       c.count k =
         ∑ ij ∈ Finset.univ.filter fun ij : blockPairsSubtype (n := n) => c.choose ij = k,
             (1 : ℕ) := by
-    simp [count, Finset.card_eq_sum_ones]
+    simpa [count] using
+      (Finset.card_eq_sum_ones
+        (s := Finset.univ.filter fun ij : blockPairsSubtype (n := n) => c.choose ij = k))
   have h₂ :
       ∑ ij ∈ Finset.univ.filter fun ij : blockPairsSubtype (n := n) => c.choose ij = k,
           (1 : ℕ)
@@ -294,7 +338,17 @@ lemma countMulti_eq_sum (c : BlockChoice (n := n)) :
         fun ij => Finsupp.single (c.choose ij) 1 := by
   classical
   ext k
-  simp [countMulti_apply, count_eq_sum_indicator, Finset.sum_apply]
+  have hright :
+      ((Finset.univ : Finset (blockPairsSubtype (n := n))).sum
+        (fun ij => Finsupp.single (c.choose ij) 1)) k =
+        ∑ ij : blockPairsSubtype (n := n),
+          (if c.choose ij = k then (1 : ℕ) else 0) := by
+    simpa [Finset.sum_apply]
+  have hleft : countMulti (n := n) c k =
+      ∑ ij : blockPairsSubtype (n := n),
+        (if c.choose ij = k then (1 : ℕ) else 0) := by
+    simp [countMulti_apply, count_eq_sum_indicator]
+  exact hleft.trans hright.symm
 
 def canonical (n : ℕ) : BlockChoice (n := n) := by
   classical
@@ -304,7 +358,8 @@ def canonical (n : ℕ) : BlockChoice (n := n) := by
   intro ij
   obtain ⟨_, hij, _⟩ := (mem_blockPairs (n := n)).1 ij.property
   have hlt : (ij.val.1 : ℕ) < ij.val.2 :=
-    lt_of_lt_of_le (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ)))) hij
+    lt_of_lt_of_le (Nat.lt_add_of_pos_right (n := ij.val.1)
+        (by decide : (0 : ℕ) < 2)) hij
   simpa [blockAllowed, mem_blockAllowed, canonical] using And.intro (le_of_eq rfl) hlt
 
 lemma canonical_choose_eq (ij : blockPairsSubtype (n := n)) (k : Fin n) :
@@ -329,14 +384,16 @@ def terminal (n : ℕ) : BlockChoice (n := n) := by
     have hpos : 0 < ij.val.2 :=
       lt_of_le_of_lt (Nat.zero_le _)
         (lt_of_lt_of_le
-          (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ))))
+          (Nat.lt_add_of_pos_right (n := ij.val.1)
+            (by decide : (0 : ℕ) < 2))
           ((mem_blockPairs (n := n)).1 ij.property |>.2.1))
     exact ⟨ij.val.2 - 1, lt_of_lt_of_le (Nat.pred_lt (Nat.ne_of_gt hpos)) hj⟩
   · intro ij
     have hij := (mem_blockPairs (n := n)).1 ij.property
     have hij_lt : ij.val.1 < ij.val.2 :=
       lt_of_lt_of_le
-        (Nat.lt_add_of_pos_right _ (by decide : (0 < (2 : ℕ)))) hij.2.1
+        (Nat.lt_add_of_pos_right (n := ij.val.1)
+          (by decide : (0 : ℕ) < 2)) hij.2.1
     have hid_le : ij.val.1 ≤ ij.val.2 - 1 :=
       Nat.le_of_lt_succ (by simpa using hij_lt)
     have hpos : 0 < ij.val.2 := lt_of_le_of_lt (Nat.zero_le _) hij_lt
@@ -355,10 +412,12 @@ lemma terminal_choose_eq (ij : blockPairsSubtype (n := n)) (k : Fin n) :
     have hval := congrArg (fun x : Fin n => (x : ℕ)) h
     have hpos : 1 ≤ ij.val.2 :=
       le_trans (by decide : (1 : ℕ) ≤ 2)
-        ( (mem_blockPairs (n := n)).1 ij.property |>.2.1)
+        ((mem_blockPairs (n := n)).1 ij.property |>.2.1)
+    have hchoice : ((terminal (n := n)).choose ij : ℕ) = ij.val.2 - 1 := rfl
     calc
       ij.val.2 = (ij.val.2 - 1) + 1 := Nat.sub_add_cancel hpos
-      _ = k + 1 := by simpa [terminal, Nat.add_comm, Nat.add_left_comm, hval]
+      _ = (terminal (n := n)).choose ij + 1 := by simpa [hchoice]
+      _ = k + 1 := by simpa using congrArg Nat.succ hval
   · intro h
     have hpos : 1 ≤ ij.val.2 :=
       le_trans (by decide : (1 : ℕ) ≤ 2)
@@ -368,7 +427,7 @@ lemma terminal_choose_eq (ij : blockPairsSubtype (n := n)) (k : Fin n) :
         ij.val.2 - 1 = (k + 1) - 1 := by simpa [h, Nat.succ_eq_add_one]
         _ = k := Nat.add_sub_cancel _ _
     ext
-    simpa [terminal, hval]
+    simp [terminal, hval]
 
 lemma count_terminal (n : ℕ) (k : Fin n) :
     (terminal (n := n)).count k = (k : ℕ) := by
@@ -384,35 +443,32 @@ lemma count_terminal (n : ℕ) (k : Fin n) :
   have hadd :
       ((blockPairs (n := n)).attach.filter fun ij => ij.1.2 = (k : ℕ) + 1).card =
         ((blockPairs (n := n)).filter fun ij => ij.2 = (k : ℕ) + 1).card := by
-    simpa [filter_attach] using
-      (Finset.card_attach ((blockPairs (n := n)).filter fun ij => ij.2 = (k : ℕ) + 1))
+    simpa using
+      (card_filter_attach
+        (s := blockPairs (n := n))
+        (p := fun ij : ℕ × ℕ => ij.2 = (k : ℕ) + 1))
   have hcount :
       (terminal (n := n)).count k =
         ((blockPairs (n := n)).filter fun ij => ij.2 = (k : ℕ) + 1).card := by
-    simpa [hadd] using hcard
-  by_cases hkzero : k = 0
-  · subst hkzero
-    have hzero :
+    simpa [count, h₀, hadd]
+  by_cases hkzero : (k : ℕ) = 0
+  · have hjzero :
         ((blockPairs (n := n)).filter fun ij : ℕ × ℕ => ij.2 = 1).card = 0 := by
       refine Finset.card_eq_zero.mpr ?_
       intro ij hij
-      obtain ⟨hmem, hj⟩ := Finset.mem_filter.mp hij
+      obtain ⟨hmem, hjval⟩ := Finset.mem_filter.mp hij
       obtain ⟨_, hij₂, _⟩ := (mem_blockPairs (n := n)).1 hmem
-      have htwo : 2 ≤ ij.2 :=
-        le_trans (Nat.le_add_left _ _) hij₂
-      have : 2 ≤ 1 := by simpa [hj] using htwo
+      have htwo : 2 ≤ ij.2 := le_trans (Nat.le_add_left _ _) hij₂
+      have : 2 ≤ 1 := by simpa [hjval] using htwo
       exact (Nat.not_succ_le_self 1 this).elim
-    simpa [hcount]
-      using hzero
-  · have hkval_ne : (k : ℕ) ≠ 0 := by
-      intro hk
-      exact hkzero (Fin.ext (by simpa [hk]))
-    have hkpos : 0 < (k : ℕ) := Nat.pos_of_ne_zero hkval_ne
+    simp [hcount, hkzero, hjzero]
+  · have hkpos : 0 < (k : ℕ) := Nat.pos_of_ne_zero hkzero
     have hj₂ : 2 ≤ (k : ℕ) + 1 := Nat.succ_le_succ hkpos
     have hj_le : (k : ℕ) + 1 ≤ n := Nat.succ_le_of_lt k.2
     have hcard' :=
       card_blockPairs_snd (n := n) (j := (k : ℕ) + 1) hj₂ hj_le
-    simpa [hcount, Nat.add_comm, Nat.add_left_comm, Nat.add_sub_cancel] using hcard'
+    simpa [hcount, Nat.add_comm, Nat.add_left_comm, Nat.add_sub_cancel]
+      using hcard'
 
 lemma countMulti_terminal (n : ℕ) :
     countMulti (n := n) (terminal (n := n)) = vandTarget (n := n) := by
@@ -429,42 +485,51 @@ lemma eq_terminal_of_countMulti
     intro k
     simpa [countMulti_apply, vandTarget_apply] using congrArg (fun f => f k) hc
   have hmain :
-      ∀ m,
-        (∀ t ≤ m, ∀ ij : blockPairsSubtype (n := n),
-            ij.val.2 + t = n → c.choose ij = (terminal (n := n)).choose ij)) := by
+      ∀ m, ∀ t ≤ m, ∀ ij : blockPairsSubtype (n := n),
+          ij.val.2 + t = n → c.choose ij = (terminal (n := n)).choose ij := by
     refine Nat.rec ?base ?step
     · intro t ht ij hij
       have htzero : t = 0 := le_antisymm ht (Nat.zero_le _)
       subst htzero
       have hij₂ := (mem_blockPairs (n := n)).1 ij.property |>.2.1
-      have htwo : 2 ≤ ij.val.2 := le_trans (Nat.le_add_left _ _) hij₂
-      have hj_two : 2 ≤ n := by simpa [hij] using htwo
-      have hnpos : 0 < n := lt_of_le_of_lt (by decide : 0 < 2) hj_two
+      have hjtwo : 2 ≤ ij.val.2 := le_trans (Nat.le_add_left _ _) hij₂
+      have hjn : ij.val.2 = n := by simpa using hij
+      have hn_two : 2 ≤ n := by simpa [hjn]
+      have hnpos : 0 < n := lt_of_le_of_lt (by decide : 0 < 2) hn_two
       let kfin : Fin n := ⟨n - 1, Nat.pred_lt (Nat.ne_of_gt hnpos)⟩
       let T := Finset.univ.filter fun x : blockPairsSubtype (n := n) => c.choose x = kfin
       let S := Finset.univ.filter fun x : blockPairsSubtype (n := n) => x.val.2 = n
       have hTcard : T.card = n - 1 := by
         dsimp [T]
         simpa [BlockChoice.count, kfin] using hcount kfin
+      have hSattach :
+          S = (blockPairs (n := n)).attach.filter fun ij => ij.1.2 = n := by
+        ext x; simp [S, univ_blockSubtype]
       have hScard : S.card = n - 1 := by
-        dsimp [S]
-        have hx := card_blockPairs_snd (n := n) (j := n) hj_two (Nat.le_of_eq rfl)
-        simpa [univ_blockSubtype] using hx
+        have hattach :=
+          card_filter_attach
+            (s := blockPairs (n := n))
+            (p := fun ij : ℕ × ℕ => ij.2 = n)
+        have hx := card_blockPairs_snd (n := n) (j := n) hn_two (Nat.le_of_eq rfl)
+        simpa [hSattach] using hattach.trans hx
       have hsubset : T ⊆ S := by
         intro x hx
         have hxval : c.choose x = kfin := (Finset.mem_filter.mp hx).2
         have hxlt : (kfin : ℕ) < x.val.2 := by
-          have := BlockChoice.choose_lt_right (n := n) c x
-          simpa [hxval] using this
+          simpa [hxval] using BlockChoice.choose_lt_right (n := n) c x
         have hxge : n ≤ x.val.2 := Nat.succ_le_of_lt (by simpa [kfin] using hxlt)
         have hxle : x.val.2 ≤ n := (mem_blockPairs (n := n)).1 x.property |>.2.2
         have hxEq : x.val.2 = n := le_antisymm hxle hxge
         exact Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hx).1, hxEq⟩
       have hTS : T = S :=
         Finset.eq_of_subset_of_card_le hsubset (by simpa [hTcard, hScard])
-      have hij_in : ij ∈ S := by simp [S, hij]
-      have : ij ∈ T := by simpa [hTS] using hij_in
-      exact (Finset.mem_filter.mp this).2
+      have : ij ∈ T := by
+        have hij_in : ij ∈ S := by simp [S, hjn]
+        simpa [hTS] using hij_in
+      have hchoose : c.choose ij = kfin := (Finset.mem_filter.mp this).2
+      have hterm : (terminal (n := n)).choose ij = kfin := by
+        ext; simp [terminal, hjn, kfin]
+      simpa [hterm] using hchoose
     · intro m IH t ht ij hij
       by_cases htm : t ≤ m
       · exact IH t htm ij hij
@@ -474,76 +539,83 @@ lemma eq_terminal_of_countMulti
           · exact (htm (Nat.le_of_lt_succ hlt)).elim
           · simpa using hEq
         subst hcase
-        set j := n - (m + 1)
-        have hjle : j ≤ n := Nat.sub_le _ _
         have hm_le_n : m + 1 ≤ n := by
           have := Nat.le_add_left (m + 1) ij.val.2
           simpa [hij]
-            using this
+        set j := n - (m + 1)
+        have hjle : j ≤ n := Nat.sub_le _ _
         have hjadd : j + (m + 1) = n := by
           simpa [j] using Nat.sub_add_cancel hm_le_n
         have hijval : ij.val.2 = j := by
-          have hij' : ij.val.2 + (m + 1) = j + (m + 1) := by
-            simpa [hjadd] using hij
-          exact Nat.add_right_cancel hij'
+          have := congrArg (fun x => x - (m + 1)) hij
+          simpa [hjadd, Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using this
         have hij₂ := (mem_blockPairs (n := n)).1 ij.property |>.2.1
         have hjtwo : 2 ≤ j := by
           have htwo : 2 ≤ ij.val.2 := le_trans (Nat.le_add_left _ _) hij₂
           simpa [hijval] using htwo
         have hjpos : 0 < j := lt_of_le_of_lt (by decide : 0 < 2) hjtwo
-        have hjlt : j - 1 < n := lt_of_lt_of_le (Nat.pred_lt (Nat.ne_of_gt hjpos)) hjle
-        let kfin : Fin n := ⟨j - 1, hjlt⟩
+        have hj_lt_n : j - 1 < n := by
+          have hsucc : Nat.succ (j - 1) = j := Nat.succ_pred_eq_of_pos hjpos
+          have : Nat.succ (j - 1) ≤ n := by simpa [hsucc] using hjle
+          exact Nat.lt_of_succ_le this
+        let kfin : Fin n := ⟨j - 1, hj_lt_n⟩
         let T := Finset.univ.filter fun x : blockPairsSubtype (n := n) => c.choose x = kfin
         let S := Finset.univ.filter fun x : blockPairsSubtype (n := n) => x.val.2 = j
         have hTcard : T.card = j - 1 := by
           dsimp [T]
           simpa [BlockChoice.count, kfin] using hcount kfin
+        have hSattach :
+            S = (blockPairs (n := n)).attach.filter fun x => x.1.2 = j := by
+          ext x; simp [S, univ_blockSubtype]
         have hScard : S.card = j - 1 := by
-          dsimp [S]
+          have hattach :=
+            card_filter_attach
+              (s := blockPairs (n := n))
+              (p := fun ij : ℕ × ℕ => ij.2 = j)
           have hx := card_blockPairs_snd (n := n) (j := j) hjtwo hjle
-          simpa [univ_blockSubtype] using hx
+          simpa [hSattach] using hattach.trans hx
         have hsubset : T ⊆ S := by
           intro x hx
           have hx_eq : c.choose x = kfin := (Finset.mem_filter.mp hx).2
           have hxlt : (kfin : ℕ) < x.val.2 := by
-            have := BlockChoice.choose_lt_right (n := n) c x
-            simpa [hx_eq] using this
+            simpa [hx_eq] using BlockChoice.choose_lt_right (n := n) c x
           have hxge : j ≤ x.val.2 := Nat.succ_le_of_lt (by simpa [kfin] using hxlt)
+          have hxle : x.val.2 ≤ n := (mem_blockPairs (n := n)).1 x.property |>.2.2
           by_cases hx_eq_j : x.val.2 = j
           · exact Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hx).1, hx_eq_j⟩
-          · have hxlt' : j < x.val.2 := lt_of_le_of_ne hxge (by simpa [hx_eq_j])
-            have hxgt : j + 1 ≤ x.val.2 := Nat.succ_le_of_lt hxlt'
-            have hxle : x.val.2 ≤ n := (mem_blockPairs (n := n)).1 x.property |>.2.2
+          · have hxgt : j < x.val.2 := lt_of_le_of_ne hxge (by simpa [hx_eq_j])
             set t' := n - x.val.2
             have ht' : t' ≤ m := by
-              have := Nat.sub_le_sub_left hxgt n
+              have := Nat.sub_le_sub_left (Nat.succ_le_of_lt hxgt) n
               simpa [j, t'] using this
             have hsum : x.val.2 + t' = n := by
               have := Nat.add_sub_of_le hxle
               simpa [t'] using this.symm
             have hIH := IH t' ht' x hsum
-            have hterm : ((terminal (n := n)).choose x : ℕ) = x.val.2 - 1 := rfl
+            have hxterm : ((terminal (n := n)).choose x : ℕ) = x.val.2 - 1 := rfl
             have hkval : (kfin : ℕ) = j - 1 := rfl
             have hxge' : j ≤ x.val.2 - 1 := by
-              have hxmono : Nat.succ j ≤ Nat.succ (x.val.2 - 1) := by
-                simpa [Nat.succ_eq_add_one] using hxgt
-              exact Nat.succ_le_succ_iff.mp hxmono
+              have := Nat.succ_le_of_lt hxgt
+              simpa [Nat.succ_eq_add_one] using this
             have hneq : (x.val.2 - 1) ≠ j - 1 := ne_of_gt hxge'
-            have : False := by
+            have hxcontr : False := by
               have := congrArg (fun y : Fin n => (y : ℕ)) hIH
-              simpa [hterm, hkval, hneq] using this
-            exact (this.elim)
+              simpa [hxterm, hkval, hneq] using this
+            exact (hxcontr.elim)
         have hTS : T = S :=
           Finset.eq_of_subset_of_card_le hsubset (by simpa [hTcard, hScard])
         have hij_in : ij ∈ S := by
           simp [S, hijval]
         have : ij ∈ T := by simpa [hTS] using hij_in
-        exact (Finset.mem_filter.mp this).2
-  have hfinal := hmain n
+        have hchoose : c.choose ij = kfin := (Finset.mem_filter.mp this).2
+        have hterm : (terminal (n := n)).choose ij = kfin := by
+          ext; simp [terminal, hijval, kfin]
+        simpa [hterm] using hchoose
   funext ij
   have hle : ij.val.2 ≤ n := (mem_blockPairs (n := n)).1 ij.property |>.2.2
   have hsum : ij.val.2 + (n - ij.val.2) = n := Nat.add_sub_of_le hle
-  exact hfinal (n - ij.val.2) (Nat.sub_le _ _) ij hsum
+  have := hmain n (n - ij.val.2) (Nat.sub_le _ _) ij hsum
+  simpa using this
 
 lemma countMulti_eq_vandTarget_iff (c : BlockChoice (n := n)) :
     countMulti (n := n) c = vandTarget (n := n) ↔
@@ -708,8 +780,10 @@ lemma count_canonical (n : ℕ) (k : Fin n) :
   have h₂ :
       ((blockPairs (n := n)).attach.filter fun ij => ij.1 = (k : ℕ)).card =
         ((blockPairs (n := n)).filter fun ij => ij.1 = (k : ℕ)).card := by
-    simpa [filter_attach] using
-      (Finset.card_attach ((blockPairs (n := n)).filter fun ij => ij.1 = (k : ℕ)))
+    simpa using
+      (card_filter_attach
+        (s := blockPairs (n := n))
+        (p := fun ij : ℕ × ℕ => ij.1 = (k : ℕ)))
   simpa [blockTarget_card_blockPairs, h₂] using h₁
 
 lemma countMulti_canonical (n : ℕ) :
@@ -739,8 +813,14 @@ lemma eq_canonical_of_counts
           S = (blockPairs (n := n)).attach.filter fun ij => ij.1 = i := by
         ext x; simp [S, univ_blockSubtype]
       have hattach : S.card = ((blockPairs (n := n)).filter fun ij => ij.1 = i).card := by
-        simpa [h₀, filter_attach]
-          using (Finset.card_attach ((blockPairs (n := n)).filter fun ij => ij.1 = i))
+        have hcard :=
+          (card_filter_attach (s := blockPairs (n := n))
+            (p := fun ij : ℕ × ℕ => ij.1 = i))
+        have :
+            S.card =
+              ((blockPairs (n := n)).attach.filter fun ij => ij.1 = i).card := by
+          simpa [h₀]
+        exact this.trans hcard
       have htarget :
           ((blockPairs (n := n)).filter fun ij => ij.1 = i).card =
             blockTarget (n := n) kfin := by
@@ -805,7 +885,7 @@ lemma coeff_blockFactor_first (ij : ℕ × ℕ) (hi : ij.1 < n)
   classical
   obtain ⟨_, hij₂, _⟩ := (mem_blockPairs (n := n)).1 hij
   have hlt : (ij.1 : ℕ) < ij.2 := lt_of_lt_of_le
-      (Nat.lt_add_of_pos_right ij.1 (by decide : (0 < (2 : ℕ)))) hij₂
+      (Nat.lt_add_of_pos_right (n := ij.1) (by decide : (0 : ℕ) < 2)) hij₂
   have hcond : ij.1 ≤ ((⟨ij.1, hi⟩ : Fin n) : ℕ) ∧
       ((⟨ij.1, hi⟩ : Fin n) : ℕ) < ij.2 := by
     simp [hi, hlt]
